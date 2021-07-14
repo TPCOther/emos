@@ -28,6 +28,10 @@
     SELECT id, open_id, nickname, photo, name, sex, tel, role, root, dept_id, status, create_time
     FROM tb_user WHERE id = #{userId} AND status = 1
   </select>
+  
+  <select id="searchUserHiredate" parameterType="int" resultType="String">
+    SELECT hiredate FROM tb_user WHERE id = #{userId} AND status = 1
+  </select>
 
   <insert id="insert" parameterType="HashMap">
     INSERT INTO tb_user

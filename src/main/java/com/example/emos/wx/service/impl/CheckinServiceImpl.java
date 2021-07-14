@@ -1,5 +1,7 @@
 package com.example.emos.wx.service.impl;
 
+import cn.hutool.core.date.DateField;
+import cn.hutool.core.date.DateRange;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
@@ -27,6 +29,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.resource.HttpResource;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 
@@ -112,7 +115,7 @@ public class CheckinServiceImpl implements CheckinService {
         else{
             String path = (String)param.get("path");
             HttpRequest request = HttpUtil.createPost(checkinUrl);
-            request.form("photo", FileUtil.file(path),"targetModel",faceModel);
+            request.form("photo", FileUtil.file(path),"targetModel",faceModel); //上传照片与储存的人脸模型
             HttpResponse response = request.execute();
             if(response.getStatus()!=200){
                 log.error("人脸识别服务异常");
@@ -177,18 +180,72 @@ public class CheckinServiceImpl implements CheckinService {
 
     @Override
     public void createFaceModel(int userId, String path) {
-        HttpRequest request = HttpUtil.createPost(createFaceModelUrl);
-        request.form("photo",FileUtil.file(path));
+        HttpRequest request = HttpUtil.createPost(createFaceModelUrl);  //请求flask接口
+        request.form("photo",FileUtil.file(path));  //上传图片文件
         HttpResponse response = request.execute();
         String body = response.body();
-        if("无法识别人脸".equals(body)||"照片中存在多张人脸".equals(body)){
+        if("无法识别人脸".equals(body)||"照片中存在多张人脸".equals(body)){    //处理错误消息
             throw new EmosException(body);
         }
         else{
-            TbFaceModel entity = new TbFaceModel();
+            TbFaceModel entity = new TbFaceModel(); //储存base64编码的人脸模型
             entity.setUserId(userId);
             entity.setFaceModel(body);
             faceModelDao.insert(entity);
         }
+    }
+
+    @Override
+    public HashMap searchTodayCheckin(int userId) {
+        HashMap map = checkinDao.searchTodayCheckin(userId);
+        return map;
+    }
+
+    @Override
+    public long searchCheckinDays(int userId) {
+        long days = checkinDao.searchCheckinDays(userId);
+        return days;
+    }
+
+    @Override
+    public ArrayList<HashMap> searchWeekCheckin(HashMap param) {
+        ArrayList<HashMap> checkinList = checkinDao.searchWeekCheckin(param);   //查询周签到记录
+        ArrayList holidaysList = holidaysDao.searchHolidaysInRange(param);  //判断周内的特殊假日与工作日
+        ArrayList workdayList = workdayDao.searchWorkdayInRange(param);
+        DateTime startDate = DateUtil.parseDate(param.get("startDate").toString());
+        DateTime endDate = DateUtil.parseDate(param.get("endDate").toString());
+        DateRange range = DateUtil.range(startDate,endDate, DateField.DAY_OF_MONTH);    //生成周对象
+        ArrayList<HashMap> list = new ArrayList<>();
+        range.forEach(one ->{   //遍历一周处理考勤数据
+            String date = one.toString("yyyy-MM-dd");
+            String type = "工作日";    //判断当天是否是特殊节假日/工作日
+            if(one.isWeekend()){ type = "节假日"; }
+            if(holidaysList != null && holidaysList.contains(date)){ type = "节假日"; }
+            else if(workdayList != null && workdayList.contains(date)){ type = "工作日"; }
+            String status = "";
+            if(type.equals("工作日") && DateUtil.compare(one,DateUtil.date()) <= 0){   //判断当天是否打卡及打卡状态
+                status = "缺勤";
+                boolean flag = false;
+                for(HashMap<String,String> map:checkinList){
+                    if(map.containsValue(date)){
+                        status = map.get("status");
+                        flag = true;
+                        break;
+                    }
+                }
+                DateTime endTime = DateUtil.parse(DateUtil.today() + " " + constants.attendanceEndTime);
+                String today = DateUtil.today();
+                if(date.equals(today) && DateUtil.date().isBefore(endTime) && !flag){   //对于日期为当天的特殊处理
+                    status = "";
+                }
+            }
+            HashMap map = new HashMap();    //将处理完的信息放入map返回
+            map.put("date",date);
+            map.put("status",status);
+            map.put("type",type);
+            map.put("day",one.dayOfWeekEnum().toChinese("周"));
+            list.add(map);
+        });
+        return list;
     }
 }

@@ -14,4 +14,5 @@ public interface TbUserDao {
     public Set<String> searchUserPermissions(int userId); //查询用户权限，set用于多角色权限去重
     public TbUser searchById(int userId);
     public HashMap searchNameAndDept(int userId);
+    public String searchUserHiredate(int userId);
 }

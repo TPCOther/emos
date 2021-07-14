@@ -89,4 +89,10 @@ public class UserServiceImpl implements UserService {
     public TbUser searchById(int userId) {
         return userDao.searchById(userId);
     }
+
+    @Override
+    public String searchUserHiredate(int userId) {
+        String hiredate = userDao.searchUserHiredate(userId);
+        return hiredate;
+    }
 }
