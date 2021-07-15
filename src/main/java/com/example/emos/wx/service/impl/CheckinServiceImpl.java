@@ -248,4 +248,9 @@ public class CheckinServiceImpl implements CheckinService {
         });
         return list;
     }
+
+    @Override
+    public ArrayList<HashMap> searchMonthCheckin(HashMap param) {
+        return checkinDao.searchWeekCheckin(param);
+    }
 }

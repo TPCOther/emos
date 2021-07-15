@@ -7,12 +7,14 @@ import com.example.emos.wx.common.util.R;
 import com.example.emos.wx.config.SysConstants;
 import com.example.emos.wx.config.shiro.JwtUtil;
 import com.example.emos.wx.controller.form.CheckinForm;
+import com.example.emos.wx.controller.form.SearchMonthCheckinForm;
 import com.example.emos.wx.exception.EmosException;
 import com.example.emos.wx.service.CheckinService;
 import com.example.emos.wx.service.UserService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.shiro.crypto.hash.Hash;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.validation.Valid;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.sql.Date;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -128,5 +131,22 @@ public class CheckinController {
         return R.ok().put("result", map);
     }
 
+    @PostMapping("/searchMonthCheckin")
+    @ApiOperation("查询用户某月签到数据")
+    public R searchMonthCheckin(@Valid @RequestBody SearchMonthCheckinForm form, @RequestHeader("token") String token){
+        int userId = jwtUtil.getUserId(token);
+        DateTime hiredate = DateUtil.parse(userService.searchUserHiredate(userId));
+        String month = form.getMonth() < 10 ? "0"+form.getMonth() : form.getMonth().toString();
+        DateTime startDate = DateUtil.parse(form.getYear()+"-"+month+"-01");
+        if(startDate.isBefore(DateUtil.beginOfMonth(hiredate))){ throw new EmosException("只能查询入职之后日期的数据"); }
+        if(startDate.isBefore(hiredate)){ startDate = hiredate; }
+        DateTime endDate= DateUtil.endOfMonth(startDate);
+        HashMap param = new HashMap();
+        param.put("userId",userId);
+        param.put("startDate",startDate.toString());
+        param.put("endDate",endDate.toString());
+        ArrayList<HashMap> list = checkinService.searchMonthCheckin(param);
+        return R.ok().put("list",list);
+    }
 
 }
